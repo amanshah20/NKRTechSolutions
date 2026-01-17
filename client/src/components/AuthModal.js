@@ -4,7 +4,7 @@ import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 
 const AuthModal = () => {
-  const { showAuthModal, closeAuthModal, login } = useAuth();
+  const { showAuthModal, closeAuthModal, login, authMode } = useAuth();
   const [isLogin, setIsLogin] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -15,6 +15,13 @@ const AuthModal = () => {
     email: '',
     password: ''
   });
+
+  // Update isLogin based on authMode when modal opens
+  React.useEffect(() => {
+    if (showAuthModal) {
+      setIsLogin(authMode === 'login');
+    }
+  }, [showAuthModal, authMode]);
 
   if (!showAuthModal) return null;
 

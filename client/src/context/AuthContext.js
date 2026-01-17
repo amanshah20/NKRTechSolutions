@@ -15,6 +15,7 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authMode, setAuthMode] = useState('login'); // 'login' or 'signup'
 
   // Check if user is logged in on mount
   useEffect(() => {
@@ -58,7 +59,10 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
   };
 
-  const openAuthModal = () => setShowAuthModal(true);
+  const openAuthModal = (mode = 'login') => {
+    setAuthMode(mode);
+    setShowAuthModal(true);
+  };
   const closeAuthModal = () => setShowAuthModal(false);
 
   return (
@@ -66,6 +70,7 @@ export const AuthProvider = ({ children }) => {
       user,
       setUser, 
       loading, 
+      authMode,
       login, 
       logout, 
       showAuthModal,

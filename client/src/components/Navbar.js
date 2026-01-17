@@ -43,12 +43,15 @@ const Navbar = () => {
           
           {!user && (
             <>
-              <li className="mobile-only"><Link to="/request-demo" className="navbar-link" onClick={closeMenu}>Request Demo</Link></li>
-              <li className="mobile-only"><Link to="/place-order" className="navbar-link" onClick={closeMenu}>Place Order</Link></li>
               <li className="mobile-only">
-                <button className="navbar-link mobile-auth-btn" onClick={() => { openAuthModal(); closeMenu(); }}>
+                <button className="navbar-link mobile-auth-btn" onClick={() => { openAuthModal('login'); closeMenu(); }}>
                   <LogIn size={18} />
-                  Sign In
+                  Login
+                </button>
+              </li>
+              <li className="mobile-only">
+                <button className="navbar-link mobile-auth-btn" onClick={() => { openAuthModal('signup'); closeMenu(); }}>
+                  Sign Up
                 </button>
               </li>
             </>
@@ -66,11 +69,12 @@ const Navbar = () => {
         <div className="navbar-actions">
           {!user && (
             <>
-              <Link to="/request-demo" className="btn btn-secondary desktop-only" onClick={closeMenu}>Request Demo</Link>
-              <Link to="/place-order" className="btn btn-primary desktop-only" onClick={closeMenu}>Place Order</Link>
-              <button className="btn btn-outline desktop-only" onClick={openAuthModal}>
+              <button className="btn-auth btn-login desktop-only" onClick={() => openAuthModal('login')}>
                 <LogIn size={18} />
-                Sign In
+                Login
+              </button>
+              <button className="btn-auth btn-signup desktop-only" onClick={() => openAuthModal('signup')}>
+                Sign Up
               </button>
             </>
           )}

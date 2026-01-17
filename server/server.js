@@ -19,8 +19,17 @@ const userAuthRoutes = require('./routes/userAuth');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// Configure CORS - Allow all origins
+const corsOptions = {
+  origin: true, // Allows all origins
+  credentials: true,
+  optionsSuccessStatus: 200,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+};
+
 // Middleware
-app.use(cors());
+app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -48,8 +57,13 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
-  console.log(`📊 Environment: ${process.env.NODE_ENV}`);
-});
+// Export the Express app for Vercel serverless functions
+module.exports = app;
+
+// Start server (only for local development)
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(PORT, () => {
+    console.log(`🚀 Server running on http://localhost:${PORT}`);
+    console.log(`📊 Environment: ${process.env.NODE_ENV}`);
+  });
+}
