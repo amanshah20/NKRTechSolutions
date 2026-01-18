@@ -1,8 +1,8 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const db = require('../database/init');
+const Admin = require('../models/Admin');
 
-exports.login = (req, res) => {
+exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
@@ -15,48 +15,40 @@ exports.login = (req, res) => {
     }
 
     // Find admin
-    db.get('SELECT * FROM admin WHERE email = ?', [email], (err, admin) => {
-      if (err) {
-        console.error('Database error:', err);
-        return res.status(500).json({ 
-          success: false, 
-          message: 'Server error during login' 
-        });
-      }
+    const admin = await Admin.findOne({ email });
 
-      if (!admin) {
-        return res.status(401).json({ 
-          success: false, 
-          message: 'Invalid credentials' 
-        });
-      }
-
-      // Verify password
-      const isValidPassword = bcrypt.compareSync(password, admin.password);
-
-      if (!isValidPassword) {
-        return res.status(401).json({ 
-          success: false, 
-          message: 'Invalid credentials' 
-        });
-      }
-
-      // Generate JWT
-      const token = jwt.sign(
-        { id: admin.id, email: admin.email },
-        process.env.JWT_SECRET,
-        { expiresIn: '24h' }
-      );
-
-      res.json({
-        success: true,
-        message: 'Login successful',
-        token,
-        admin: {
-          id: admin.id,
-          email: admin.email
-        }
+    if (!admin) {
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Invalid credentials' 
       });
+    }
+
+    // Verify password
+    const isValidPassword = await bcrypt.compare(password, admin.password);
+
+    if (!isValidPassword) {
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Invalid credentials' 
+      });
+    }
+
+    // Generate JWT
+    const token = jwt.sign(
+      { id: admin._id, email: admin.email },
+      process.env.JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    res.json({
+      success: true,
+      message: 'Login successful',
+      token,
+      admin: {
+        id: admin._id,
+        email: admin.email
+      }
     });
 
   } catch (error) {

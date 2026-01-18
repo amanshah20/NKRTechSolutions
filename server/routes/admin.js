@@ -22,12 +22,12 @@ const {
   deleteMessage,
   getAllPayments,
   updatePaymentStatus
-} = require('../controllers/adminController');
+} = require('../controllers/adminController_new');
 const {
   getAllFeedback,
   approveFeedback,
   deleteFeedback
-} = require('../controllers/feedbackController');
+} = require('../controllers/feedbackController_new');
 
 // All routes require authentication
 router.use(authMiddleware);

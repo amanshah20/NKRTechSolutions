@@ -1,151 +1,137 @@
-const db = require('../database/init');
+const User = require('../models/User');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'nkr_tech_solutions_secret_key_2026';
 
 // User Signup - Simple version
 exports.signup = async (req, res) => {
-  const { name, email, password } = req.body;
+  try {
+    const { name, email, password } = req.body;
 
-  if (!name || !email || !password) {
-    return res.status(400).json({ success: false, message: 'All fields are required' });
-  }
-
-  // Validate email format
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return res.status(400).json({ success: false, message: 'Invalid email format' });
-  }
-
-  // Check if user already exists
-  db.get('SELECT * FROM users WHERE email = ?', [email], async (err, user) => {
-    if (err) {
-      return res.status(500).json({ success: false, message: 'Database error' });
+    if (!name || !email || !password) {
+      return res.status(400).json({ success: false, message: 'All fields are required' });
     }
 
-    if (user) {
+    // Validate email format
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ success: false, message: 'Invalid email format' });
+    }
+
+    // Check if user already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
       return res.status(400).json({ success: false, message: 'Email already registered' });
     }
 
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Insert user into database
-    db.run(
-      'INSERT INTO users (name, email, password) VALUES (?, ?, ?)',
-      [name, email, hashedPassword],
-      function(err) {
-        if (err) {
-          return res.status(500).json({ success: false, message: 'Failed to create user' });
-        }
+    // Create user
+    const user = await User.create({
+      name,
+      email,
+      password: hashedPassword
+    });
 
-        // Generate JWT token
-        const token = jwt.sign({ userId: this.lastID, email }, JWT_SECRET, { expiresIn: '7d' });
+    // Generate JWT token
+    const token = jwt.sign({ userId: user._id, email }, JWT_SECRET, { expiresIn: '7d' });
 
-        res.status(201).json({ 
-          success: true, 
-          message: 'Account created successfully',
-          token,
-          user: {
-            id: this.lastID,
-            name,
-            email
-          }
-        });
+    res.status(201).json({ 
+      success: true, 
+      message: 'Account created successfully',
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email
       }
-    );
-  });
+    });
+  } catch (error) {
+    console.error('Signup error:', error);
+    res.status(500).json({ success: false, message: 'Failed to create account' });
+  }
 };
 
 // User Login
-exports.login = (req, res) => {
-  const { email, password } = req.body;
+exports.login = async (req, res) => {
+  try {
+    const { email, password } = req.body;
 
-  if (!email || !password) {
-    return res.status(400).json({ success: false, message: 'Email and password are required' });
-  }
-
-  db.get('SELECT * FROM users WHERE email = ?', [email], async (err, user) => {
-    if (err) {
-      return res.status(500).json({ success: false, message: 'Database error' });
+    if (!email || !password) {
+      return res.status(400).json({ success: false, message: 'Email and password are required' });
     }
 
+    const user = await User.findOne({ email });
     if (!user) {
       return res.status(401).json({ success: false, message: 'Invalid email or password' });
     }
 
     // Verify password
     const isPasswordValid = await bcrypt.compare(password, user.password);
-
     if (!isPasswordValid) {
       return res.status(401).json({ success: false, message: 'Invalid email or password' });
     }
 
     // Update last login
-    db.run('UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?', [user.id]);
+    user.lastLogin = new Date();
+    await user.save();
 
     // Generate JWT token
-    const token = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
+    const token = jwt.sign({ userId: user._id, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
 
     res.json({ 
       success: true, 
       message: 'Login successful',
       token,
       user: {
-        id: user.id,
+        id: user._id,
         name: user.name,
         email: user.email,
-        profilePicture: user.profile_picture
+        profilePicture: user.profilePicture
       }
     });
-  });
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({ success: false, message: 'Login failed' });
+  }
 };
 
 // Change Password (requires old password)
 exports.changePassword = async (req, res) => {
-  const userId = req.userId; // From auth middleware
-  const { currentPassword, newPassword } = req.body;
+  try {
+    const userId = req.userId; // From auth middleware
+    const { currentPassword, newPassword } = req.body;
 
-  if (!currentPassword || !newPassword) {
-    return res.status(400).json({ success: false, message: 'All fields are required' });
-  }
-
-  if (newPassword.length < 6) {
-    return res.status(400).json({ success: false, message: 'Password must be at least 6 characters' });
-  }
-
-  db.get('SELECT * FROM users WHERE id = ?', [userId], async (err, user) => {
-    if (err) {
-      return res.status(500).json({ success: false, message: 'Database error' });
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ success: false, message: 'All fields are required' });
     }
 
+    if (newPassword.length < 6) {
+      return res.status(400).json({ success: false, message: 'Password must be at least 6 characters' });
+    }
+
+    const user = await User.findById(userId);
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
 
     // Verify old password
     const isOldPasswordValid = await bcrypt.compare(currentPassword, user.password);
-
     if (!isOldPasswordValid) {
       return res.status(401).json({ success: false, message: 'Current password is incorrect' });
     }
 
     // Hash new password
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    user.password = await bcrypt.hash(newPassword, 10);
+    await user.save();
 
-    // Update password
-    db.run(
-      'UPDATE users SET password = ? WHERE id = ?',
-      [hashedPassword, userId],
-      (err) => {
-        if (err) {
-          return res.status(500).json({ success: false, message: 'Failed to update password' });
-        }
-
-        res.json({ success: true, message: 'Password changed successfully' });
-      }
-    );
-  });
+    res.json({ success: true, message: 'Password changed successfully' });
+  } catch (error) {
+    console.error('Change password error:', error);
+    res.status(500).json({ success: false, message: 'Failed to change password' });
+  }
 };
 
 // Google Sign-In (requires mobile number to be added later)
@@ -161,69 +147,66 @@ exports.googleSignIn = async (req, res) => {
     return res.status(400).json({ success: false, message: 'Invalid mobile number. Please enter 10 digits.' });
   }
 
-  // Check if user exists by email or google_id
-  db.get('SELECT * FROM users WHERE email = ? OR google_id = ?', [email, googleId], (err, user) => {
-    if (err) {
-      return res.status(500).json({ success: false, message: 'Database error' });
-    }
+  // Check if user exists by email or googleId
+  try {
+    let user = await User.findOne({ $or: [{ email }, { googleId }] });
 
     if (user) {
       // User exists, log them in
-      db.run('UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?', [user.id]);
+      user.lastLogin = new Date();
+      await user.save();
 
-      const token = jwt.sign({ userId: user.id, email: user.email, mobile: user.mobile }, JWT_SECRET, { expiresIn: '7d' });
+      const token = jwt.sign({ userId: user._id, email: user.email, mobile: user.mobile }, JWT_SECRET, { expiresIn: '7d' });
 
       return res.json({ 
         success: true, 
         message: 'Login successful',
         token,
         user: {
-          id: user.id,
+          id: user._id,
           name: user.name,
           email: user.email,
           mobile: user.mobile,
-          profilePicture: user.profile_picture || profilePicture
+          profilePicture: user.profilePicture || profilePicture
         }
-      });
-    } else {
-      // Check if mobile already exists
-      db.get('SELECT * FROM users WHERE mobile = ?', [mobile], (err, existingUser) => {
-        if (err) {
-          return res.status(500).json({ success: false, message: 'Database error' });
-        }
-
-        if (existingUser) {
-          return res.status(400).json({ success: false, message: 'Mobile number already registered' });
-        }
-
-        // Create new user (Google users are auto-verified)
-        db.run(
-          'INSERT INTO users (name, email, mobile, google_id, is_verified, profile_picture) VALUES (?, ?, ?, ?, 1, ?)',
-          [name, email, mobile, googleId, profilePicture],
-          function(err) {
-            if (err) {
-              return res.status(500).json({ success: false, message: 'Failed to create user' });
-            }
-
-            const token = jwt.sign({ userId: this.lastID, email, mobile }, JWT_SECRET, { expiresIn: '7d' });
-
-            res.status(201).json({ 
-              success: true, 
-              message: 'Account created successfully',
-              token,
-              user: {
-                id: this.lastID,
-                name,
-                email,
-                mobile,
-                profilePicture
-              }
-            });
-          }
-        );
       });
     }
-  });
+
+    // Check if mobile already exists
+    const existingMobile = await User.findOne({ mobile });
+    if (existingMobile) {
+      return res.status(400).json({ success: false, message: 'Mobile number already registered' });
+    }
+
+    // Create new user (Google users are auto-verified)
+    user = await User.create({
+      name,
+      email,
+      mobile,
+      googleId,
+      isVerified: true,
+      profilePicture,
+      password: crypto.randomBytes(16).toString('hex') // Random password for Google users
+    });
+
+    const token = jwt.sign({ userId: user._id, email, mobile }, JWT_SECRET, { expiresIn: '7d' });
+
+    res.status(201).json({ 
+      success: true, 
+      message: 'Account created successfully',
+      token,
+      user: {
+        id: user._id,
+        name,
+        email,
+        mobile,
+        profilePicture
+      }
+    });
+  } catch (error) {
+    console.error('Google sign-in error:', error);
+    return res.status(500).json({ success: false, message: 'Google sign-in failed' });
+  }
 };
 
 // Forgot Password
